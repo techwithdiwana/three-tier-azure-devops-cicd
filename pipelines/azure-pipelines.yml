@@ -1,0 +1,35 @@
+trigger:
+  branches:
+    include:
+      - develop
+
+pr:
+  branches:
+    include:
+      - develop
+
+variables:
+  azureServiceConnection: 'azure-three-tier-sc'
+  acrName: 'acrthreetierdev'
+  acrLoginServer: 'acrthreetierdev.azurecr.io'
+
+stages:
+  - stage: CI
+    displayName: 'CI - Build and Push Images'
+
+    jobs:
+      - job: BuildAndPush
+        displayName: 'Build, Test and Push'
+
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          - checkout: self
+            displayName: 'Checkout source code'
+
+          - template: templates/ci-build-push.yml
+            parameters:
+              azureServiceConnection: $(azureServiceConnection)
+              acrName: $(acrName)
+              acrLoginServer: $(acrLoginServer)

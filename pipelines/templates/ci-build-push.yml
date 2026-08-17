@@ -1,0 +1,80 @@
+parameters:
+  - name: azureServiceConnection
+    type: string
+
+  - name: acrName
+    type: string
+
+  - name: acrLoginServer
+    type: string
+
+steps:
+
+  # =========================
+  # Backend
+  # =========================
+
+  - task: UseDotNet@2
+    displayName: 'Install .NET 8 SDK'
+    inputs:
+      packageType: 'sdk'
+      version: '8.0.x'
+
+  - script: |
+      cd backend
+      dotnet restore
+      dotnet build -c Release --no-restore
+    displayName: 'Build backend'
+
+  # =========================
+  # Frontend
+  # =========================
+
+  - task: NodeTool@0
+    displayName: 'Install Node.js 22'
+    inputs:
+      versionSpec: '22.x'
+
+  - script: |
+      cd frontend
+      npm ci
+      npm run build
+    displayName: 'Build frontend'
+
+  # =========================
+  # Azure / ACR
+  # =========================
+
+  - task: AzureCLI@2
+    displayName: 'Build and push Docker images to ACR'
+    inputs:
+      azureSubscription: '${{ parameters.azureServiceConnection }}'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        set -e
+
+        echo "Logging in to Azure Container Registry..."
+        az acr login --name '${{ parameters.acrName }}'
+
+        echo "Building backend image..."
+        docker build \
+          -t '${{ parameters.acrLoginServer }}/backend:$(Build.BuildId)' \
+          -t '${{ parameters.acrLoginServer }}/backend:latest' \
+          ./backend
+
+        echo "Building frontend image..."
+        docker build \
+          -t '${{ parameters.acrLoginServer }}/frontend:$(Build.BuildId)' \
+          -t '${{ parameters.acrLoginServer }}/frontend:latest' \
+          ./frontend
+
+        echo "Pushing backend image..."
+        docker push '${{ parameters.acrLoginServer }}/backend:$(Build.BuildId)'
+        docker push '${{ parameters.acrLoginServer }}/backend:latest'
+
+        echo "Pushing frontend image..."
+        docker push '${{ parameters.acrLoginServer }}/frontend:$(Build.BuildId)'
+        docker push '${{ parameters.acrLoginServer }}/frontend:latest'
+
+        echo "Images pushed successfully."
